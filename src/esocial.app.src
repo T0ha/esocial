@@ -1,0 +1,20 @@
+{application, 'esocial',
+ [{description, "An OTP application"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {'esocial_app', []}},
+  {applications,
+   [kernel,
+    stdlib,
+    ssl,
+    inets,
+    hottub,
+    lager
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {contributors, []},
+  {licenses, []},
+  {links, []}
+ ]}.
