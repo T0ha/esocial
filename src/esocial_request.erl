@@ -1,9 +1,9 @@
--module(esocial_vk).
+-module(esocial_request).
 
 -behaviour(gen_server).
 
 %% API functions
--export([start_link/1]).
+-export([start_link/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -13,12 +13,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {
-          app_id = 0 :: non_neg_integer(),
-          config = [] :: [proplists:property()]
-               }).
--define(BASE_URL, <<"https://api.vk.com">>).
--define(BASE_AUTH_URL, <<"https://oauth.vk.com/authorize">>).
+-record(state, {}).
 
 %%%===================================================================
 %%% API functions
@@ -31,15 +26,9 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(Config) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
-
--spec call(Method, Args) -> Response when
-      Method :: iodata(),
-      Args :: map() | [proplists:property()],
-      Response :: map() | [proplists:property()].
-call(Method, Args) -> 
-    gen_server:call(?MODULE, {call, Method, Args}, infinity).
+start_link() ->  % {{{2
+    Workers = application:get_env(esocial, request_workers, 10),
+    hottub:start_link(request, Workers, gen_server, start_link, [?MODULE, [], []]).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -56,10 +45,8 @@ call(Method, Args) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([Config]) ->
-    AppID = proplists:get_value(app_id, Config, 0),
-    lager:info("Starting vk handler for ~p", [ AppID ]),
-    {ok, #state{app_id=AppID, config=Config}}.
+init([]) ->  % {{{2
+    {ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -75,11 +62,7 @@ init([Config]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({call, Method, Args}, From, #state{app_id=AppID}=State) ->
-    URL = hackney_url:make_url(?BASE_URL, [<<"method">>, Method], Args),
-    hottub:cast(request, {From, URL}),
-    {noreply, State};
-handle_call(_Request, _From, State) ->
+handle_call(_Request, _From, State) ->  % {{{2
     Reply = ok,
     {reply, Reply, State}.
 
@@ -93,7 +76,12 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast(_Msg, State) ->
+handle_cast({From, URL}, State) ->  % {{{2
+    Responce = hackney:get(URL, [], [], [{follow_rediret, true}]),
+    Map = decode_responce(Responce),
+    gen_server:reply(From, Map),
+    {noreply, State};
+handle_cast(_Msg, State) ->  % {{{2
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -106,7 +94,7 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info(_Info, State) ->
+handle_info(_Info, State) ->  % {{{2
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -120,7 +108,7 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, _State) ->  % {{{2
     ok.
 
 %%--------------------------------------------------------------------
@@ -131,9 +119,31 @@ terminate(_Reason, _State) ->
 %% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% @end
 %%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
+code_change(_OldVsn, State, _Extra) ->  % {{{2
     {ok, State}.
 
 %%%===================================================================
-%%% Internal functions
+%%% Internal functions  % {{{1
 %%%===================================================================
+decode_responce({ok, 200, _, Ref}) ->  % {{{2
+    Body = hackney:body(Ref),
+    decode_body(Body);
+decode_responce({ok, Code, _, Ref}) ->  % {{{2
+    Body = hackney:body(Ref),
+    lager:warning("Request returned wrong code: ~p ~p", [Code, Body]),
+    #{};
+decode_responce({error, Reason}) ->  % {{{2
+    lager:warning("Request error: ~p", [Reason]),
+    #{}.
+
+decode_body({ok, Body}) ->  % {{{2
+    try
+        jsx:decode(Body, [return_maps])
+    catch 
+        error:badarg -> 
+            lager:warning("JSON decode: ~p", [Body]),
+            #{}
+    end;
+decode_body({error, Reason}) ->  % {{{2
+    lager:warning("Body decode error: ~p", [Reason]),
+    #{}.
