@@ -1,0 +1,9 @@
+[
+ {esocial, [
+            {plugins, [vk]},
+            {request_workers, 10},
+            {vk, [
+                  {app_id, -1}
+                 ]}
+           ]}
+].
