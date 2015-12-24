@@ -3,7 +3,8 @@
             {plugins, [vk]},
             {request_workers, 10},
             {vk, [
-                  {app_id, -1}
+                  {app_id, -1}, % Your application id (from application settings)
+                  {secret, <<>>} % Your security key (from application settings)
                  ]}
            ]}
 ].

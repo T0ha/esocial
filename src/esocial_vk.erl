@@ -5,7 +5,8 @@
 %% API functions
 -export([
          start_link/1,
-         call/2
+         call/2,
+         get_access_token/2
         ]).
 
 %% gen_server callbacks
@@ -18,10 +19,11 @@
 
 -record(state, {
           app_id = 0 :: non_neg_integer(),
+          secret = <<>> :: binary(),
           config = [] :: [proplists:property()]
                }).
 -define(BASE_URL, <<"https://api.vk.com">>).
--define(BASE_AUTH_URL, <<"https://oauth.vk.com/authorize">>).
+-define(BASE_AUTH_URL, <<"https://oauth.vk.com">>).
 
 %%%===================================================================
 %%% API functions
@@ -44,6 +46,12 @@ start_link(Config) ->
 call(Method, Args) -> 
     gen_server:call(?MODULE, {call, Method, Args}, infinity).
 
+-spec get_access_token(Code, Redirect) -> map() when 
+      Code :: iodata(),
+      Redirect :: binary().
+get_access_token(Code, Redirect) ->
+    gen_server:call(?MODULE, {auth, Code, Redirect}, infinity).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -61,8 +69,9 @@ call(Method, Args) ->
 %%--------------------------------------------------------------------
 init([Config]) ->
     AppID = proplists:get_value(app_id, Config, 0),
+    Secret = proplists:get_value(secret, Config, <<>>),
     lager:info("Starting vk handler for ~p", [ AppID ]),
-    {ok, #state{app_id=AppID, config=Config}}.
+    {ok, #state{app_id=AppID, config=Config, secret=Secret}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -78,6 +87,16 @@ init([Config]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_call({auth, Code, Redirect}, From, #state{app_id=AppID, secret=Secret}=State) ->
+    Args = [
+            {client_id, AppID},
+            {client_secret, Secret},
+            {redirect_uri, Redirect},
+            {code, Code}
+           ],
+    URL = hackney_url:make_url(?BASE_AUTH_URL, [<<"access_token">>], Args),
+    hottub:cast(request, {From, URL}),
+    {noreply, State};
 handle_call({call, Method, Args}, From, #state{app_id=AppID}=State) ->
     URL = hackney_url:make_url(?BASE_URL, [<<"method">>, Method], Args),
     hottub:cast(request, {From, URL}),
