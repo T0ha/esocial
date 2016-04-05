@@ -77,6 +77,7 @@ handle_call(_Request, _From, State) ->  % {{{2
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({From, URL}, State) ->  % {{{2
+    lager:debug("Requesting URL: ~p from pid: ~p", [URL, From]),
     Responce = hackney:get(URL, [], [], [{follow_rediret, true}]),
     Map = decode_responce(Responce),
     gen_server:reply(From, Map),
