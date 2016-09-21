@@ -1,9 +1,32 @@
--module(esocial_request).
+%%%-------------------------------------------------------------------
+%%% @author ins
+%%% @copyright (C) 2016, ins
+%%% @doc
+%%%
+%%% @end
+%%% Created : 2016-08-30 15:22:18.651553
+%%%-------------------------------------------------------------------
+-module(esocial).
 
 -behaviour(gen_server).
 
-%% API functions
--export([start_link/0]).
+-include("include/esocial.hrl").
+
+
+%% API
+-export([
+         start_link/0,
+         connect/2,
+         connect/3,
+         auth/3,
+         profile/1,
+         profile/2,
+         profiles/2,
+         track/2,
+         tracks/2,
+         user_tracks/2,
+         user_tracks/1
+        ]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -13,10 +36,12 @@
          terminate/2,
          code_change/3]).
 
+-define(SERVER, ?MODULE).
+
 -record(state, {}).
 
 %%%===================================================================
-%%% API functions
+%%% API
 %%%===================================================================
 
 %%--------------------------------------------------------------------
@@ -26,9 +51,60 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link() ->  % {{{2
-    Workers = application:get_env(esocial, request_workers, 10),
-    hottub:start_link(request, Workers, gen_server, start_link, [?MODULE, [], []]).
+start_link() ->
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+-spec connect(platform(), binary()) -> binary().
+connect(Platform, RedirectURI) ->
+    Module = platform_to_module(Platform),
+    Module:connect(RedirectURI, ["*"]).
+
+-spec connect(platform(), binary(), Scopes) -> binary() when
+      Scopes :: [Scope],
+      Scope :: iodata().
+connect(Platform, RedirectURI, Scopes) ->
+    Module = platform_to_module(Platform),
+    Module:connect(RedirectURI, Scopes).
+
+-spec auth(Platform, Code, RedirectURI) -> handler() when
+      Platform :: platform(),
+      Code :: binary(),
+      RedirectURI :: binary().
+auth(Platform, Code, RedirectURI) ->
+    Module = platform_to_module(Platform),
+    Module:auth(Code, RedirectURI).
+
+-spec profile(handler()) -> profile().
+profile(#esocial{module=Module, user_id=Id, token=Token}=Handler) ->
+    Module:profile(Handler, Id).
+
+-spec profile(handler(), esocial_id()) -> profile().
+profile(#esocial{module=Module, token=Token}=Handler, Id) ->
+    Module:profile(Handler, Id).
+
+-spec profiles(handler(), [esocial_id()]) -> [profile()].
+profiles(#esocial{module=Module, token=Token}=Handler, IDs) ->
+    Module:profiles(Handler, IDs).
+
+-spec playlist(handler(), esocial_id()) -> playlist().
+playlist(#esocial{module=Module, token=Token}=Handler, Id) ->
+    Module:playlist(Handler, Id).
+
+-spec track(handler(), esocial_id()) -> track().
+track(#esocial{module=Module, token=Token}=Handler, Id) ->
+    Module:track(Handler, Id).
+
+-spec tracks(handler(), [esocial_id()]) -> [track()].
+tracks(#esocial{module=Module, token=Token}=Handler, Ids) ->
+    Module:tracks(Handler, Ids).
+
+-spec user_tracks(handler(), esocial_id()) -> [track()].
+user_tracks(#esocial{module=Module, token=Token}=Handler, Id) ->
+    Module:user_tracks(Handler, Id).
+
+-spec user_tracks(handler()) -> [track()].
+user_tracks(#esocial{module=Module, user_id=Id, token=Token}=Handler) ->
+    Module:user_tracks(Handler, Id).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -45,7 +121,7 @@ start_link() ->  % {{{2
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([]) ->  % {{{2
+init([]) ->
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -62,7 +138,7 @@ init([]) ->  % {{{2
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call(_Request, _From, State) ->  % {{{2
+handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
@@ -76,15 +152,7 @@ handle_call(_Request, _From, State) ->  % {{{2
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({From, URL}, State) ->  % {{{2
-    handle_cast({From, get, URL, [], []}, State);
-handle_cast({From, Method, URL, Headers, Body}, State) ->  % {{{2
-    lager:debug("Requesting URL: ~p from pid: ~p", [URL, From]),
-    Responce = hackney:request(Method, URL, Headers, Body, [{follow_rediret, true}]),
-    Map = decode_responce(Responce),
-    gen_server:reply(From, Map),
-    {noreply, State};
-handle_cast(_Msg, State) ->  % {{{2
+handle_cast(_Msg, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -97,7 +165,7 @@ handle_cast(_Msg, State) ->  % {{{2
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info(_Info, State) ->  % {{{2
+handle_info(_Info, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -111,7 +179,7 @@ handle_info(_Info, State) ->  % {{{2
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->  % {{{2
+terminate(_Reason, _State) ->
     ok.
 
 %%--------------------------------------------------------------------
@@ -122,31 +190,12 @@ terminate(_Reason, _State) ->  % {{{2
 %% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% @end
 %%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->  % {{{2
-    {ok, State}.
+code_change(_OldVsn, State, _Extra) ->
+        {ok, State}.
 
 %%%===================================================================
-%%% Internal functions  % {{{1
+%%% Internal functions
 %%%===================================================================
-decode_responce({ok, 200, _, Ref}) ->  % {{{2
-    Body = hackney:body(Ref),
-    decode_body(Body);
-decode_responce({ok, Code, _, Ref}) ->  % {{{2
-    Body = hackney:body(Ref),
-    lager:warning("Request returned wrong code: ~p ~p", [Code, Body]),
-    #{};
-decode_responce({error, Reason}) ->  % {{{2
-    lager:warning("Request error: ~p", [Reason]),
-    #{}.
+platform_to_module(M) ->
+    list_to_atom("esocial_" ++ atom_to_list(M)).
 
-decode_body({ok, Body}) ->  % {{{2
-    try
-        jsx:decode(Body, [return_maps])
-    catch 
-        error:badarg -> 
-            lager:warning("JSON decode: ~p", [Body]),
-            #{}
-    end;
-decode_body({error, Reason}) ->  % {{{2
-    lager:warning("Body decode error: ~p", [Reason]),
-    #{}.
