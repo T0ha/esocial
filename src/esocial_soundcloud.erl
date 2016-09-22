@@ -206,7 +206,7 @@ handle_call({connect, RedirectURI, Scopes}, From, #state{app_id=AppID, secret=Se
     Scope = string:join(Scopes, " "),
     Return = lists:flatten(
                io_lib:format(
-                 "~s/connect?client_id=~s&response_type=code&redirect_uri=~s&state=sc",
+                 "~s/connect?client_id=~s&response_type=code&redirect_uri=~s&state=soundcloud",
                  [?BASE_AUTH_URL, AppID, RedirectURI])),
     {reply, Return, State};
 handle_call({auth, Code, Redirect}, From, #state{auth=Auth, app_id=AppID, secret=Secret}=State) -> % {{{1

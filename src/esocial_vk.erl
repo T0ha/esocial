@@ -213,7 +213,7 @@ handle_call({connect, RedirectURI, Scopes}, From, #state{app_id=AppID, secret=Se
     Scope = string:join(Scopes, ","),
     Return = lists:flatten(
                io_lib:format(
-                 "~s/authorize?client_id=~p&display=page&scope=~s&response_type=code&redirect_uri=~s",
+                 "~s/authorize?state=vk&client_id=~p&display=page&scope=~s&response_type=code&redirect_uri=~s",
                  [?BASE_AUTH_URL, AppID, Scope, RedirectURI])),
     {reply, Return, State};
 handle_call({auth, Code, Redirect}, From, #state{app_id=AppID, secret=Secret}=State) -> % {{{1
