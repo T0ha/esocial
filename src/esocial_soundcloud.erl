@@ -10,6 +10,7 @@
          auth/2,
          profile/2,
          profiles/2,
+         playlists/2,
          track/2,
          tracks/2,
          user_tracks/2,
@@ -111,13 +112,13 @@ profiles(#esocial{token=Token}=Handler, IDs) ->
                 [],
                 Raw).
 
-%-spec playlists(handler(), esocial_id()) -> playlist(). % {{{1
-%playlists(#esocial{user_id=Id, token=Token}=Handler, Id) ->
-%    Method = "/me/playlists",
-%    Args = [],
-%    Response = gen_server:call(?MODULE, {call, Method, Token, Args}, infinity),
-%    lager:info("Response: ~p", [Response]),
-%    lists:map(fun decode_playlist_tracks/1, Response).
+-spec playlists(handler(), esocial_id()) -> playlist(). % {{{1
+playlists(#esocial{user_id=Id, token=Token}=Handler, Id) ->
+    Method = "/me/playlists",
+    Args = [],
+    Response = gen_server:call(?MODULE, {call, Method, Token, Args}, infinity),
+    lager:info("Response: ~p", [Response]),
+    lists:map(fun decode_playlist/1, Response).
 
 -spec track(handler(), esocial_id()) -> track(). % {{{1
 track(#esocial{token=Token}=Handler, Id) ->
@@ -322,3 +323,16 @@ decode_playlist_tracks(#{ % {{{1
  }, Token) ->
     [ decode_audio(Track, Token) || Track <- Tracks].
 
+decode_playlist(#{ % {{{1
+  <<"id">> := Id,
+  <<"title">> := Name,
+  <<"user">> := #{<<"id">> := Owner},
+  <<"tracks">> := Tracks
+ }) ->
+
+    #esocial_playlist{
+         id = Id, 
+         name = Name,
+         owner = Owner,
+         tracks = [TID || #{<<"id">> := TID} <- Tracks]
+        }.

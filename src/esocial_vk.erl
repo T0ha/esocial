@@ -10,6 +10,7 @@
          auth/2,
          profile/2,
          profiles/2,
+         playlists/2,
          track/2,
          tracks/2,
          user_tracks/2,
@@ -113,13 +114,20 @@ profiles(#esocial{token=Token}=Handler, IDs) ->
         Any -> Any
     end.
 
--spec playlists(handler(), esocial_id()) -> playlist(). % {{{1
+-spec playlists(handler(), esocial_id()) -> [playlist()]. % {{{1
 playlists(#esocial{token=Token}=Handler, Id) ->
     Method = "audio.getAlbums",
     Args = [{owner_id, integer_to_binary(Id)},
             {access_token, Token}
            ],
-    gen_server:call(?MODULE, {call, Method, Args}, infinity).
+    Response = gen_server:call(?MODULE, {call, Method, Args}, infinity),
+    case parse_response(Response) of
+        {ok, Audio} -> lists:map(fun(P) ->
+                                         decode_playlist(P, Handler) 
+                                 end,
+                                 Audio);
+        Any -> Any
+    end.
 
 -spec track(handler(), esocial_id()) -> track(). % {{{1
 track(#esocial{token=Token}=Handler, Id) ->
@@ -140,6 +148,19 @@ tracks(#esocial{token=Token}=Handler, IDs) ->
     BinIDs = string:join([integer_to_list(ID) || ID <- IDs], ","),
 
     Args = [{audio_ids, BinIDs},
+            {access_token, Token}
+           ],
+    Response = gen_server:call(?MODULE, {call, Method, Args}, infinity),
+    case parse_response(Response) of
+        {ok, Audios} -> lists:map(fun decode_audio/1, Audios);
+        Any -> Any
+    end.
+
+-spec playlist_tracks(handler(), esocial_id()) -> [track()]. % {{{1
+playlist_tracks(#esocial{token=Token}=Handler, PlaylistID) ->
+    Method = "audio.get",
+    Args = [
+            {album_id, integer_to_binary(PlaylistID)},
             {access_token, Token}
            ],
     Response = gen_server:call(?MODULE, {call, Method, Args}, infinity),
@@ -319,3 +340,13 @@ decode_audio(#{<<"aid">> := AID, % {{{1
        uri = URL
       }.
 
+decode_playlist(#{<<"album_id">> := AID, % {{{1
+                  <<"title">> := Title
+                 },
+                Handler) ->
+    Tracks = playlist_tracks(Handler, AID),
+    #esocial_playlist{
+       id = AID,
+       name = Title, 
+       tracks = [TID || #esocial_track{id=TID} <- Tracks]
+      }.
