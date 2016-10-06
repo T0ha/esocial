@@ -97,14 +97,14 @@ profiles(#esocial{token=Token}=Handler, IDs) ->
                         <<"first_name">> := Name,
                         <<"last_name">> := Surname,
                         <<"country">> := Country,
-                        <<"bdate">> :=BirthDate,
+                        %<<"bdate">> := BirthDate,
                         <<"photo_50">> := Photo
-                       }) ->
+                       } = Profile) ->
                               URL = <<"https://vk.com/id", (integer_to_binary(PID))/bytes>>,
                               #esocial_profile{
                                  id = PID,
                                  display_name = <<Name/bytes, " ", Surname/bytes>>,
-                                 birthdate  = BirthDate,
+                                 birthdate  = maps:get(<<"bdate">>, Profile, <<>>),
                                  country = Country,
                                  profile_uri = URL,
                                  photo = Photo
@@ -234,7 +234,7 @@ handle_call({connect, RedirectURI, Scopes}, From, #state{app_id=AppID, secret=Se
     Scope = string:join(Scopes, ","),
     Return = lists:flatten(
                io_lib:format(
-                 "~s/authorize?state=vk&client_id=~p&display=page&scope=~s&response_type=code&redirect_uri=~s",
+                 "~s/authorize?v=5.8&state=vk&client_id=~p&display=page&scope=~s&response_type=code&redirect_uri=~s",
                  [?BASE_AUTH_URL, AppID, Scope, RedirectURI])),
     {reply, Return, State};
 handle_call({auth, Code, Redirect}, From, #state{app_id=AppID, secret=Secret}=State) -> % {{{1
