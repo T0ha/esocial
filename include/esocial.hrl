@@ -1,3 +1,8 @@
+-export_type([
+              handler/0,
+              platform/0,
+              esocial_id/0
+             ]).
 -type platform() :: vk | sound_cloud | spotify.
 -type esocial_id() :: {platform(), integer()}.
 
@@ -7,7 +12,8 @@
          redirect_uri :: binary(),
          module :: module(),
          user_id :: non_neg_integer(),
-         token :: binary()
+         token :: binary(),
+         args = [] :: [proplists:property()]
         }).
 
 -opaque handler() :: #esocial{}.

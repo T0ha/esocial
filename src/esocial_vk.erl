@@ -8,6 +8,7 @@
          start_link/1,
          connect/2,
          auth/2,
+         captcha/2,
          profile/2,
          profiles/2,
          playlists/2,
@@ -73,6 +74,16 @@ auth(Code, RedirectURI) ->
         Any -> {error, Any}
     end.
         
+-spec captcha(handler(), Captcha) -> handler() when % {{{1
+      Captcha :: {Sid, CaptchaData},
+      Sid :: binary(),
+      CaptchaData :: binary().
+captcha(#esocial{args=OldArgs}=Handler, {Sid, Captcha}) ->
+    ClearArgs = proplists:delete(captcha_sid, proplists:delete(captcha_img, OldArgs)),
+    Args = ClearArgs ++ [{captcha_sid, Sid},
+                         {captcha_key, Captcha}],
+    Handler#esocial{args=Args}.
+
 -spec profile(handler(), esocial_id()) -> profile(). % {{{1
 profile(Handler, Id) ->
     case profiles(Handler, [Id]) of
@@ -81,14 +92,14 @@ profile(Handler, Id) ->
     end.
 
 -spec profiles(handler(), [esocial_id()]) -> [profile()]. % {{{1
-profiles(#esocial{token=Token}=Handler, IDs) ->
+profiles(#esocial{args=ArgsCommon, token=Token}=Handler, IDs) ->
     Method = "users.get",
     BinIDs = string:join([integer_to_list(ID) || ID <- IDs], ","),
-    Args = [
-            {user_ids, BinIDs},
-            {fields, "photo_50,country,bdate"},
-            {access_token, Token}
-           ],
+    Args = ArgsCommon ++ [
+                          {user_ids, BinIDs},
+                          {fields, "photo_50,country,bdate"},
+                          {access_token, Token}
+                         ],
     Response = gen_server:call(?MODULE, {call, Method, Args}, infinity),
     case parse_response(Response) of
         {ok, Profiles} ->
@@ -115,11 +126,11 @@ profiles(#esocial{token=Token}=Handler, IDs) ->
     end.
 
 -spec playlists(handler(), esocial_id()) -> [playlist()]. % {{{1
-playlists(#esocial{token=Token}=Handler, Id) ->
+playlists(#esocial{args=ArgsCommon, token=Token}=Handler, Id) ->
     Method = "audio.getAlbums",
-    Args = [{owner_id, integer_to_binary(Id)},
-            {access_token, Token}
-           ],
+    Args = ArgsCommon ++ [{owner_id, integer_to_binary(Id)},
+                          {access_token, Token}
+                         ],
     Response = gen_server:call(?MODULE, {call, Method, Args}, infinity),
     case parse_response(Response) of
         {ok, Audio} -> lists:map(fun(P) ->
@@ -130,12 +141,12 @@ playlists(#esocial{token=Token}=Handler, Id) ->
     end.
 
 -spec track(handler(), esocial_id()) -> track(). % {{{1
-track(#esocial{token=Token}=Handler, Id) ->
+track(#esocial{args=ArgsCommon, token=Token}=Handler, Id) ->
     Method = "audio.get",
-    Args = [
-            {audio_ids, [integer_to_binary(Id)]},
-            {access_token, Token}
-           ],
+    Args = ArgsCommon ++ [
+                          {audio_ids, [integer_to_binary(Id)]},
+                          {access_token, Token}
+                         ],
     Response = gen_server:call(?MODULE, {call, Method, Args}, infinity),
     case parse_response(Response) of
         {ok, [Audio]} -> decode_audio(Audio);
@@ -143,13 +154,13 @@ track(#esocial{token=Token}=Handler, Id) ->
     end.
 
 -spec tracks(handler(), [esocial_id()]) -> [track()]. % {{{1
-tracks(#esocial{token=Token}=Handler, IDs) ->
+tracks(#esocial{args=ArgsCommon, token=Token}=Handler, IDs) ->
     Method = "audio.get",
     BinIDs = string:join([integer_to_list(ID) || ID <- IDs], ","),
 
-    Args = [{audio_ids, BinIDs},
-            {access_token, Token}
-           ],
+    Args = ArgsCommon ++ [{audio_ids, BinIDs},
+                          {access_token, Token}
+                         ],
     Response = gen_server:call(?MODULE, {call, Method, Args}, infinity),
     case parse_response(Response) of
         {ok, Audios} -> lists:map(fun decode_audio/1, Audios);
@@ -157,9 +168,9 @@ tracks(#esocial{token=Token}=Handler, IDs) ->
     end.
 
 -spec playlist_tracks(handler(), esocial_id()) -> [track()]. % {{{1
-playlist_tracks(#esocial{token=Token}=Handler, PlaylistID) ->
+playlist_tracks(#esocial{args=ArgsCommon, token=Token}=Handler, PlaylistID) ->
     Method = "audio.get",
-    Args = [
+    Args = ArgsCommon ++ [
             {album_id, integer_to_binary(PlaylistID)},
             {access_token, Token}
            ],
@@ -170,12 +181,12 @@ playlist_tracks(#esocial{token=Token}=Handler, PlaylistID) ->
     end.
 
 -spec user_tracks(handler(), esocial_id()) -> [track()]. % {{{1
-user_tracks(#esocial{token=Token}=Handler, OwnerID) ->
+user_tracks(#esocial{args=ArgsCommon, token=Token}=Handler, OwnerID) ->
     Method = "audio.get",
-    Args = [
-            {owner_id, integer_to_binary(OwnerID)},
-            {access_token, Token}
-           ],
+    Args = ArgsCommon ++ [
+                          {owner_id, integer_to_binary(OwnerID)},
+                          {access_token, Token}
+                         ],
     Response = gen_server:call(?MODULE, {call, Method, Args}, infinity),
     case parse_response(Response) of
         {ok, Audios} -> lists:map(fun decode_audio/1, Audios);

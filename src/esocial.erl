@@ -19,6 +19,7 @@
          connect/2,
          connect/3,
          auth/3,
+         captcha/2,
          profile/1,
          profile/2,
          profiles/2,
@@ -75,6 +76,12 @@ connect(Platform, RedirectURI, Scopes) ->
 auth(Platform, Code, RedirectURI) ->
     Module = platform_to_module(Platform),
     Module:auth(Code, RedirectURI).
+
+
+-spec captcha(handler(), Captcha) -> handler() when % {{{1
+      Captcha :: any().
+captcha(#esocial{module=Module, user_id=Id, token=Token}=Handler, Captcha) ->
+    Module:captcha(Handler, Captcha).
 
 -spec profile(handler()) -> profile(). % {{{1
 profile(#esocial{module=Module, user_id=Id, token=Token}=Handler) ->
