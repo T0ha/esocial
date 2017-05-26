@@ -1,5 +1,5 @@
 -module(esocial_spotify).
-
+-compilei([{parse_transform, lager_transform}]).
 -behaviour(gen_server).
 
 -include("include/esocial.hrl").
