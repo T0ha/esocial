@@ -80,24 +80,25 @@ auth(Code, RedirectURI) ->
         
 -spec profile(handler(), esocial_id()) -> profile(). % {{{1
 profile(#esocial{token=Token}=Handler, Id) ->
-    Method = <<"/users/", Id/bytes>>,
+    Method = <<"/users/", (integer_to_binary(Id))/bytes>>,
     Args = [],
     Response = gen_server:call(?MODULE, {call, Method, Token, Args}, infinity),
     case parse_response(Response) of
         {ok, #{
            <<"id">> := PID,
-           <<"display_name">> := Name,
-           <<"external_urls">> := #{<<"spotify">> := URL},
-           <<"images">> := #{<<"url">> := Photo}
+           <<"full_name">> := Name,
+           <<"permalink_url">> := URL,
+           <<"avatar_url">> := Photo
           } = User} ->
-            #esocial_profile{
+            {ok, 
+             #esocial_profile{
                id = PID,
                display_name = Name,
                birthdate  = maps:get(<<"birthdate">>, User, <<>>),
                country = maps:get(<<"country">>, User, <<>>),
                profile_uri = URL,
                photo = Photo
-              };
+              }};
         Any -> Any
     end.
 
@@ -298,7 +299,9 @@ parse_response(#{<<"error">> := #{<<"error_code">> := 5}}) ->  % {{{1
     logout;
 parse_response(#{<<"error">> := Err}) ->  % {{{1
     lager:warning("VK error: ~p", [Err]),
-    {error, Err}.
+    {error, Err};
+parse_response(Data) ->  % {{{1
+    {ok, Data}.
 
 
 decode_audio(#{<<"track">> := Track}, Token) -> % {{{1
