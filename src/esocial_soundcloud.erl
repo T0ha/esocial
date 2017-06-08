@@ -13,6 +13,7 @@
          playlists/2,
          track/2,
          tracks/2,
+         search_tracks/2,
          user_tracks/2,
          call/2,
          get_access_token/2
@@ -145,6 +146,15 @@ tracks(#esocial{token=Token}=Handler, IDs) ->
     Response = gen_server:call(?MODULE, {call, Method, Token, Args}, infinity),
     lists:flatten(lists:map(fun(A) -> decode_audio(A, Token) end, Response)).
     
+-spec search_tracks(handler(), iodata()) -> [track()]. % {{{1
+search_tracks(#esocial{token=Token}=Handler, Term) ->
+    Method = "/tracks",
+
+    Args = [
+            {q, Term}
+           ],
+    Response = gen_server:call(?MODULE, {call, Method, Token, Args}, infinity),
+    lists:flatten(lists:map(fun(A) -> decode_audio(A, Token) end, Response)).
 
 -spec user_tracks(handler(), esocial_id()) -> [track()]. % {{{1
 user_tracks(#esocial{token=Token, user_id=OwnerID}=Handler, OwnerID) ->

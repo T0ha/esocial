@@ -131,6 +131,9 @@ code_change(_OldVsn, State, _Extra) ->  % {{{2
 decode_responce({ok, 200, _, Ref}) ->  % {{{2
     Body = hackney:body(Ref),
     decode_body(Body);
+decode_responce({ok, 401, _, Ref}) ->  % {{{2
+    lager:warning("Authorization required"),
+    unauthorized;
 decode_responce({ok, Code, _, Ref}) ->  % {{{2
     Body = hackney:body(Ref),
     lager:warning("Request returned wrong code: ~p ~p", [Code, Body]),
